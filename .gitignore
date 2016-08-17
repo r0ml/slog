@@ -1,0 +1,16 @@
+
+#IDE
+**/.idea
+
+#OS
+.DS_Store
+.tmp
+
+*.d.ts
+node_modules
+
+*.sw?
+
+*.js
+*.js.map
+

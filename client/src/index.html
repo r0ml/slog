@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <script src="node_modules/systemjs/dist/system.js"></script>
+    <script>
+      System.config({
+        // transpiler: 'typescript',
+        defaultJSExtensions: true,
+        /* map: {
+          './highlightjs': 'node_modules/highlightjs/highlight.pack.js',
+          './markdown-it': 'node_modules/markdown-it/dist/markdown-it.js'
+        },*/
+        packages: {
+          'highlightjs' : {
+            main: '../node_modules/highlightjs/highlight.pack.js'
+          },
+          'markdown-it': {
+            main: '../node_modules/markdown-it/dist/markdown-it.js'
+          }
+        }
+      });
+      System.import('app.js').then(function(x) { new x.App(document.body); }
+        , console.error.bind(console));
+    </script>
+    <link rel="stylesheet" href="index.css">
+    <title>Discuss - Serverless forum software</title>
+
+    <style>
+      body {
+        padding: 0;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+  </body>
+</html>
