@@ -205,3 +205,4 @@ export class Footer extends Component {
   }
 }
 
+new App(document.body);

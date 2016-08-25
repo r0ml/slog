@@ -17,9 +17,10 @@
           }
         }
       });
-      System.import('app').then(function(x) { new x.App(document.body); }
-        , console.error.bind(console));
+      System.import('app');
+      // System.import('app').then(function(x) { new x.App(document.body); }, console.error.bind(console));
     </script>
+    <!-- <script src="bundle.js"></script> -->
 
     <link rel="stylesheet" href="index.css">
     <title>Discuss - Serverless forum software</title>

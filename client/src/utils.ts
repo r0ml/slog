@@ -1,6 +1,4 @@
-/**
- * Created by r0ml on 7/25/16.
- */
+
 
 export class StyleN {
   protected style: {[sel: string]: string};
