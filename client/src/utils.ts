@@ -200,6 +200,7 @@ window.addEventListener("popstate", Route.link, true);
 document.addEventListener("submit", Route.form, true);
 document.addEventListener("change", Route.change, true);
 
+
 // interpolates a template into a node
 export function node(literals, ...placeholders) {
   // "use strict";
@@ -207,9 +208,9 @@ export function node(literals, ...placeholders) {
   for (let i = 0; i<placeholders.length; i++) {
     result += literals[i];
     let p = placeholders[i];
-    if (p instanceof Component) {
+    if (p.constructor == this.Component) {
       result += '<div class="this-is-a-placeholder-'+i+'"></div>';
-    } else if (p instanceof StyleN) {
+    } else if (p.constructor ==  this.StyleN) {
       result += p.toString();
     } else if (typeof p === "string") {
       result += p;
@@ -226,7 +227,7 @@ export function node(literals, ...placeholders) {
   let nd = document.createElement('div');
   nd.innerHTML = result;
   for (let i=0; i<placeholders.length; i++) {
-    if ( placeholders[i] instanceof Component ) {
+    if ( placeholders[i].constructor == Component ) {
       placeholders[i].appendTo(nd.querySelector(".this-is-a-placeholder-"+i));
     }
   }

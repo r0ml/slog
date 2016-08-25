@@ -7,10 +7,7 @@
       System.config({
         // transpiler: 'typescript',
         defaultJSExtensions: true,
-        /* map: {
-          './highlightjs': 'node_modules/highlightjs/highlight.pack.js',
-          './markdown-it': 'node_modules/markdown-it/dist/markdown-it.js'
-        },*/
+        map: {"app": "./bundle.js" },
         packages: {
           'highlightjs' : {
             main: '../node_modules/highlightjs/highlight.pack.js'
@@ -20,9 +17,10 @@
           }
         }
       });
-      System.import('app.js').then(function(x) { new x.App(document.body); }
+      System.import('app').then(function(x) { new x.App(document.body); }
         , console.error.bind(console));
     </script>
+
     <link rel="stylesheet" href="index.css">
     <title>Discuss - Serverless forum software</title>
 
