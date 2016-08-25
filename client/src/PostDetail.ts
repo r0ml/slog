@@ -1,70 +1,11 @@
-/// <reference path="markdown-it.d.ts" />
-/// <reference path="highlightjs.d.ts" />
 
 import MarkdownIt from './markdown-it';
-import * as Hljs from './highlightjs';  // './dependencies';
-import { Component, StyleN } from './utils';
+import * as Hljs from './highlightjs';
+import { Component, StyleN, node } from './utils';
 import { Post, TimeAgo } from './Posts';
-
-// import { getPost, updatePost, deletePost } from './posts';
-// import { Comments, CommentNewContainer, updateComment, deleteComment } from './Comment';
-
-
-
-const postUlStyles = new StyleN({
-  marginBottom: '10px'
-});
-
-const postLiStyles = new StyleN({
-  border: '1px solid #E1E1E1',
-  padding: '10px',
-  listStyle: 'none'
-});
-
-const postTitleStyles = new StyleN({
-  fontSize: '20px',
-  marginBottom: '0px'
-});
-
-const deletePostStyles = new StyleN({
-  marginLeft: '10px',
-  float: 'right'
-});
-
-const editPostStyles = new StyleN({
-  marginLeft: '10px',
-  float: 'right'
-});
-
-const postAuthorStyles = new StyleN({
-  fontStyle: 'italic',
-  float: 'right',
-  color: '#B1B1B1'
-});
-
-const hrStyles = new StyleN({
-  margin: '10px 0px'
-});
-
-const clearStyles = new StyleN({
-  clear: 'both'
-});
-
-const noDataAvailableStyles = new StyleN({
-  marginTop: '20px',
-  textAlign: 'center'
-});
-
-const timeAgoStyles = new StyleN({
-  fontStyle: 'italic',
-  color: '#B1B1B1',
-  float: 'left'
-});
-
-const gravatarStyles = new StyleN({
-  'height': '30px',
-  'display': 'inline-block'
-});
+import { App } from './app';
+import * as Style from './Styles';
+import {CommentItem, Comment, Comments} from './Comment';
 
 const md = new MarkdownIt();
 md.options = {
@@ -118,62 +59,70 @@ export class PostDetail extends Component {
     alert("Update post");
   }
 
-  constructor(post: Post) {
+  constructor(editing: boolean, post: Post) {
     // const { post, isAuthor } = this.props;
     // const { editing, title, body } = this.state;
     post.Body = post.Body.replace(/<br\s*[\/]?>/gi, "\n");
-
-    super(`
+    let isAuthor = App.singleton.currentUser && post.Author === App.singleton.currentUser.username;
+    let z = super( post ? node `
       <div class="row">
         <div class="twelve columns">
-          {post ? (
             <div>
-              <ul style=${postUlStyles}>
-                <li key="post-${post.PostId}" style=${postLiStyles}>
-                  <h1 style=${postTitleStyles}>
-                    {editing ? (
-                      <input class="u-full-width" type="text" value={title} name="postTitle"/>
-                    ) : post.title}
+              <ul style=${Style.postUlStyles}>
+                <li key="post-${post.PostId}" style=${Style.postLiStyles}>
+                  <h1 style=${Style.postTitleStyles}>
+                    ${editing ?
+                      `<input class="u-full-width" type="text" value=${post.Title} name="postTitle"/> `
+                      : post.Title}
                   </h1>
-                  <hr style=${hrStyles}/>
-                  {editing ? (
-                    <textarea class="u-full-width" value={body} name="postBody" />
-                  ) : <div>${md.render(post.Body)}></div>}
-                  <hr style=${hrStyles}/>
-                  ${new TimeAgo(post.CreatedAt) } style=${timeAgoStyles}/>
-                  {isAuthor ? (
-                    editing ? (
-                      <div>
-                        <button style=${deletePostStyles} name="deletePost">
+                  <hr style=${Style.hrStyles}/>
+                  ${editing ? `<textarea class="u-full-width" value=${post.Body} name="postBody" />`
+                   : `<div>${md.render(post.Body)}</div>` }
+                  <hr style=${Style.hrStyles}/>
+                  ${new TimeAgo(new Date(post.CreatedAt)) }
+                  ${isAuthor ? (
+                    editing ? `<div>
+                        <button style=${Style.deletePostStyles} name="deletePost">
                           <i class="fa fa-times"></i>
                         </button>
-                        <button style=${editPostStyles} name="updatePost">
+                        <button style=${Style.editPostStyles} name="updatePost">
                           <i class="fa fa-check"></i>
                         </button>
-                      </div>
-                    ) : (
+                      </div>`
+                    : `
                       <div>
-                        <button style=${deletePostStyles} name="deletePost">
+                        <button style=${Style.deletePostStyles} name="deletePost">
                           <i class="fa fa-trash"></i>
                         </button>
-                        <button style=${editPostStyles} name="updatePost">
+                        <button style=${Style.editPostStyles} name="updatePost">
                           <i class="fa fa-pencil-square-o"></i>
                         </button>
                       </div>
-                    )
-                  ) : null}
-                  <span style=${postAuthorStyles}><img style=${gravatarStyles}
+                    `
+                  ) : ""}
+                  <span style=${Style.postAuthorStyles}><img style=${Style.gravatarStyles}
                                                       src=${post.Gravatar}/> ● ${post.Author}</span>
-                  <div style=${clearStyles}></div>
+                  <div style=${Style.clearStyles}></div>
                 </li>
               </ul>
+              ${new CommentItem(true, new Comment)}
+              ${new Comments(post.PostId)}
+              <div class="placeholder-for-comment-list"></div>
+              
             </div>
-          ) : <div style=${noDataAvailableStyles}>Seems like this post is not available <br /><a href="#/">Go back</a>
-          </div> }
+          </div>
         </div>
       </div>
-    `);
-  }
+    ` : node `<div style=${Style.noDataAvailableStyles}>Seems like this post is not available <br /><a href="#/">Go back</a> `
+    );
+
+    // The reason this cannot be interpolated is that interpolation converts the node to outerhtml,
+    // and loses its identity, so it can no longer be modified.
+    // consequently, it needs to be appended-to
+    // let ph = <HTMLElement>(this.node).querySelector(".placeholder-for-comment-list");
+    // (new CommentItem(true, new Comment)).appendTo(ph);
+    // (new Comments(post.PostId)).appendTo(ph);
+  };
 }
 
 /*
@@ -266,7 +215,7 @@ class PostDetailContainer extends Component {
     onDeleteComment={this.handleDeleteComment.bind(this)}
   />
     </div>
-  `);
+  );
   }
 
 }

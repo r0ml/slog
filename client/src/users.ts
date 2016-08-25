@@ -1,6 +1,6 @@
 
 import { Header, API_URL } from './app';
-import { Component, Route, fetch } from './utils';
+import { Component, Route, fetch, node } from './utils';
 
 export class User {
   public email: string;
@@ -71,7 +71,7 @@ export class SignUp extends Component {
   }
 
   constructor() {
-    super(` <div class="row">
+    super(node ` <div class="row">
     <div class="four columns offset-by-four">
         <form action="#/sign-up">
     <h1>Sign up</h1>
@@ -107,7 +107,7 @@ export class SignIn extends Component {
 
 
     constructor() {
-      super(`<div class="row">
+      super(node `<div class="row">
         <div class="four columns offset-by-four">
           <form action="#/sign-in">
             <h1>Sign in</h1>

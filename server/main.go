@@ -8,54 +8,170 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"log"
 	"net/http"
-	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	_ "strings"
 	"time"
 )
 
+func structFromItem(value interface{}, x map[string]*dynamodb.AttributeValue) {
+	v := reflect.ValueOf(value)
+	vs := v.Elem()
+
+	for i := 0; i < vs.NumField(); i++ {
+		f := vs.Field(i)
+		if !(f.IsValid() && f.CanSet()) {
+			continue
+		}
+		n := vs.Type().Field(i).Name
+		tag := vs.Type().Field(i).Tag.Get("dynamo")
+		nn := n
+		if tag != "" {
+			nn = tag
+		}
+		av := x[nn]
+		if av == nil {
+			log.Print("no value ", n)
+			continue
+		}
+		t := f.Kind()
+		switch t {
+		// s.Kind() == reflect.Int
+		case reflect.String:
+			ff := *av.S
+			f.SetString(ff)
+		case reflect.Int64, reflect.Int, reflect.Int32, reflect.Int16, reflect.Int8:
+			ff := *av.N
+			fn, _ := strconv.ParseInt(ff, 10, 64)
+			f.SetInt(fn)
+		case reflect.Uint, reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8:
+			ff := *av.N
+			fn, _ := strconv.ParseUint(ff, 10, 64)
+			f.SetUint(fn)
+		case reflect.Float32, reflect.Float64:
+			ff := *av.N
+			fn, _ := strconv.ParseFloat(ff, 64)
+			f.SetFloat(fn)
+		case reflect.Struct:
+			tt := f.Type()
+			var tm time.Time
+			switch tt {
+			case reflect.TypeOf(tm):
+				a, _ := strconv.ParseInt(*av.N, 10, 64)
+				a = -a
+				b := time.Unix(a/int64(time.Second), a%int64(time.Second))
+				f.Set(reflect.ValueOf(b))
+			default:
+				log.Fatal("structFromItem cannot handle type ", tt)
+			}
+		default:
+			log.Fatal("cannot handle kind ", t)
+		}
+	}
+}
+
+func itemFromStruct(value interface{}) map[string]*dynamodb.AttributeValue {
+	result := map[string]*dynamodb.AttributeValue{}
+
+	v := reflect.ValueOf(value)
+	for i := 0; i < v.NumField(); i++ {
+		f := v.Field(i)
+		n := v.Type().Field(i).Name
+		nn := n
+		tag := v.Type().Field(i).Tag.Get("dynamo")
+		if tag != "" {
+			nn = tag
+		}
+		t := f.Type()
+		var m string
+		var mt time.Time
+		switch t {
+		case reflect.TypeOf(m):
+			ff := f.String()
+			if len(ff) > 0 {
+				result[nn] = &dynamodb.AttributeValue{S: &ff}
+			}
+		case reflect.TypeOf(mt):
+			ft := f.Interface().(time.Time)
+			fts := fmt.Sprint(-ft.UnixNano())
+			result[nn] = &dynamodb.AttributeValue{N: &fts}
+
+		default:
+			log.Fatal("itemFromStruct cannot handle type", t)
+		}
+	}
+	return result
+	// How do I calculate the value of the Id ?
+}
+
+func setCORS(w http.ResponseWriter, req *http.Request) {
+	o := req.Header.Get("Origin")
+	m, _ := regexp.MatchString("://localhost(:|$)", o)
+	if m {
+		//	if strings.Contains(o, "://localhost:") {
+		w.Header().Set("Access-Control-Allow-Origin", o)
+	}
+}
+
 func hello(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
 }
 
 func comments(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	var t string
+	err := decoder.Decode(&t)
+	if err != nil {
+		panic("This is not valid JSON")
+	}
+	dsvc := dynamodb.New(Session)
+	r1, err := dsvc.Query(&dynamodb.QueryInput{
+		TableName:              aws.String("comments"),
+		KeyConditionExpression: aws.String("PostId = :post"),
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":post": {S: aws.String(t)},
+		},
+	})
+	fmt.Println("comments", err)
+	setCORS(w, r)
+	encoder := json.NewEncoder(w)
+	var pres []Comment
+	for _, x := range r1.Items {
+		p := Comment{}
+		structFromItem(&p, x)
+		pres = append(pres, p)
+	}
+	var lek string
+	if r1.LastEvaluatedKey != nil {
+		lek = *r1.LastEvaluatedKey["Time"].N
+	}
+	z := CommentResults{Items: pres, LastEvaluatedKey: lek}
+	encoder.Encode(z)
+
 }
 
 func comment(w http.ResponseWriter, r *http.Request) {
 }
 
 func posts(w http.ResponseWriter, req *http.Request) {
-	/*
-		decoder := json.NewDecoder(req.Body) // do I even care about this? -- or is it a GET ?
-		var t User
-		err := decoder.Decode(&t)
-		if err != nil {
-			panic("This is not valid JSON")
-		}
-	*/
-
 	dsvc := dynamodb.New(Session)
 	r1, err := dsvc.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("posts"),
 		IndexName: aws.String("TimeX"),
 	})
-	fmt.Println(err)
-
-	o := req.Header.Get("Origin")
-
-	m, err := regexp.MatchString("://localhost(:|$)", o)
-	if m {
-		//	if strings.Contains(o, "://localhost:") {
-		w.Header().Set("Access-Control-Allow-Origin", o)
-	}
+	fmt.Println("posts ", err)
+	setCORS(w, req)
 	encoder := json.NewEncoder(w)
 
 	var pres []Post
 
 	for _, x := range r1.Items {
-		pres = append(pres, postFromItem(x))
+		p := Post{}
+		structFromItem(&p, x)
+		pres = append(pres, p)
 	}
 
 	var lek string
@@ -63,14 +179,12 @@ func posts(w http.ResponseWriter, req *http.Request) {
 		lek = *r1.LastEvaluatedKey["Time"].N
 	}
 	z := PostResults{Items: pres, LastEvaluatedKey: lek}
-	fmt.Println(z)
-
-	y, err := json.Marshal(z)
-	fmt.Println(y, err)
-
-	encod := json.NewEncoder(os.Stderr)
-	encod.Encode(z)
 	encoder.Encode(z)
+}
+
+type CommentResults struct {
+	Items            []Comment
+	LastEvaluatedKey string
 }
 
 type PostResults struct {
@@ -79,11 +193,15 @@ type PostResults struct {
 }
 
 type Comment struct {
-	Body   string
-	PostId string
-	Author string
+	Body      string
+	PostId    string
+	Title     string
+	CommentId string
+	CreatedAt time.Time
+	Author    string
 }
 
+/*
 func postFromItem(x map[string]*dynamodb.AttributeValue) Post {
 	a, _ := strconv.ParseInt(*x["Time"].N, 10, 64)
 	a = -a
@@ -97,14 +215,14 @@ func postFromItem(x map[string]*dynamodb.AttributeValue) Post {
 		CreatedAt: b,
 	}
 }
+*/
 
 type Post struct {
 	PostId    string
 	Title     string
 	Body      string
 	Author    string
-	Comments  []Comment
-	CreatedAt time.Time
+	CreatedAt time.Time `dynamo:"Time"`
 }
 
 func post(w http.ResponseWriter, req *http.Request) {
@@ -114,40 +232,19 @@ func post(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		panic("This is not valid JSON")
 	}
-	dsvc := dynamodb.New(Session)
-	values := map[string]*dynamodb.AttributeValue{}
+	log.Printf("doPost: %#v\n", t)
+	err = doPost(t)
 
-	// How do I calculate the value of the Id ?
-
-	if t.Title != "" {
-		values["Title"] = &dynamodb.AttributeValue{S: &t.Title}
-	}
-	if t.Body != "" {
-		values["Body"] = &dynamodb.AttributeValue{S: &t.Body}
-	}
-
-	o := req.Header.Get("Origin")
-
-	m, err := regexp.MatchString("://localhost(:|$)", o)
-	if m {
-		//	if strings.Contains(o, "://localhost:") {
-		w.Header().Set("Access-Control-Allow-Origin", o)
-	}
-
-	r1, err := dsvc.PutItem(&dynamodb.PutItemInput{
-		TableName:           aws.String("posts"),
-		Item:                values,
-		ConditionExpression: aws.String("attribute_not_exists(Email)"),
-	})
+	log.Println("do post ", err)
 	encoder := json.NewEncoder(w)
-	encoder.Encode(map[string]string{})
 
+	setCORS(w, req)
 	if err != nil {
 		// w.Header().Set("header_name", "header_value")
 		w.WriteHeader(409)
-		fmt.Fprint(w, err)
+		encoder.Encode(err)
 	} else {
-		fmt.Fprint(w, r1)
+		encoder.Encode("OK")
 	}
 
 }
@@ -161,36 +258,39 @@ func login(w http.ResponseWriter, req *http.Request) {
 	}
 
 	dsvc := dynamodb.New(Session)
-	values := map[string]*dynamodb.AttributeValue{}
-	if t.Email != "" {
-		values["Email"] = &dynamodb.AttributeValue{S: &t.Email}
-	}
+	values := itemFromStruct(t)
+	/*
+		values := map[string]*dynamodb.AttributeValue{}
+		if t.Email != "" {
+			values["Email"] = &dynamodb.AttributeValue{S: &t.Email}
+		}
+	*/
 	r1, err := dsvc.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String("users"),
 		Key:       values,
 	})
 	fmt.Println(err)
-	fmt.Println(r1)
-
-	o := req.Header.Get("Origin")
-
-	m, err := regexp.MatchString("://localhost(:|$)", o)
-	if m {
-		//	if strings.Contains(o, "://localhost:") {
-		w.Header().Set("Access-Control-Allow-Origin", o)
-	}
+	setCORS(w, req)
 	encoder := json.NewEncoder(w)
 	a := r1.Item
-	if len(a) > 0 {
-		p := *a["Password"]
-		if t.Password == *p.S {
-			encoder.Encode(userFromDb(a))
-			return
+	b := User{}
+	structFromItem(&b, a)
+
+	encoder.Encode(b)
+
+	/*
+		if len(a) > 0 {
+			p := *a["Password"]
+			if t.Password == *p.S {
+				encoder.Encode(userFromDb(a))
+				return
+			}
 		}
-	}
-	encoder.Encode(map[string]string{})
+		encoder.Encode(map[string]string{})
+	*/
 }
 
+/*
 func userFromDb(f map[string]*dynamodb.AttributeValue) User {
 	g, ok := f["Gravatar"]
 	var gs string
@@ -203,9 +303,10 @@ func userFromDb(f map[string]*dynamodb.AttributeValue) User {
 		Gravatar: gs,
 	}
 }
+*/
 
 type User struct {
-	Email    string
+	Email    string `dynamo:"test 1" jsonx:"clem"`
 	Username string
 	Password string
 	Gravatar string
@@ -230,20 +331,21 @@ func register(w http.ResponseWriter, req *http.Request) {
 
 func doRegister(t User) error {
 	dsvc := dynamodb.New(Session)
-	values := map[string]*dynamodb.AttributeValue{}
-	if t.Email != "" {
-		values["Email"] = &dynamodb.AttributeValue{S: &t.Email}
-	}
-	if t.Username != "" {
-		values["Username"] = &dynamodb.AttributeValue{S: &t.Username}
-	}
-	if t.Password != "" {
-		values["Password"] = &dynamodb.AttributeValue{S: &t.Password}
-	}
-	if t.Gravatar != "" {
-		values["Gravatar"] = &dynamodb.AttributeValue{S: &t.Gravatar}
-	}
-
+	values := itemFromStruct(t)
+	/*	values := map[string]*dynamodb.AttributeValue{}
+		if t.Email != "" {
+			values["Email"] = &dynamodb.AttributeValue{S: &t.Email}
+		}
+		if t.Username != "" {
+			values["Username"] = &dynamodb.AttributeValue{S: &t.Username}
+		}
+		if t.Password != "" {
+			values["Password"] = &dynamodb.AttributeValue{S: &t.Password}
+		}
+		if t.Gravatar != "" {
+			values["Gravatar"] = &dynamodb.AttributeValue{S: &t.Gravatar}
+		}
+	*/
 	_, err := dsvc.PutItem(&dynamodb.PutItemInput{
 		TableName:           aws.String("users"),
 		Item:                values,
@@ -252,16 +354,31 @@ func doRegister(t User) error {
 	return err
 }
 
+func doComment(t Comment) error {
+	dsvc := dynamodb.New(Session)
+	t.CreatedAt = time.Now()
+	values := itemFromStruct(t)
+	_, err := dsvc.PutItem(&dynamodb.PutItemInput{
+		TableName:           aws.String("comments"),
+		Item:                values,
+		ConditionExpression: aws.String("attribute_not_exists(CommentId)"),
+	})
+	return err
+}
+
 func doPost(t Post) error {
 	dsvc := dynamodb.New(Session)
-	values := map[string]*dynamodb.AttributeValue{}
-	values["PostId"] = &dynamodb.AttributeValue{S: &t.PostId}
-	values["Author"] = &dynamodb.AttributeValue{S: &t.Author}
-	values["Title"] = &dynamodb.AttributeValue{S: &t.Title}
-	values["Body"] = &dynamodb.AttributeValue{S: &t.Body}
-	tm := fmt.Sprint(-time.Now().UnixNano())
-	values["Time"] = &dynamodb.AttributeValue{N: &tm}
-
+	t.CreatedAt = time.Now()
+	values := itemFromStruct(t)
+	/*
+		values := map[string]*dynamodb.AttributeValue{}
+		values["PostId"] = &dynamodb.AttributeValue{S: &t.PostId}
+		values["Author"] = &dynamodb.AttributeValue{S: &t.Author}
+		values["Title"] = &dynamodb.AttributeValue{S: &t.Title}
+		values["Body"] = &dynamodb.AttributeValue{S: &t.Body}
+		tm := fmt.Sprint(-time.Now().UnixNano())
+		values["Time"] = &dynamodb.AttributeValue{N: &tm}
+	*/
 	_, err := dsvc.PutItem(&dynamodb.PutItemInput{
 		TableName:           aws.String("posts"),
 		Item:                values,
@@ -362,8 +479,40 @@ func provision() {
 		},
 	})
 	fmt.Println("create table", err, r1)
+
+	r1, err = dsvc.CreateTable(&dynamodb.CreateTableInput{
+		TableName: aws.String("comments"),
+		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			&dynamodb.AttributeDefinition{
+				AttributeName: aws.String("PostId"),
+				AttributeType: aws.String("S"),
+			},
+			&dynamodb.AttributeDefinition{
+				AttributeName: aws.String("CommentId"),
+				AttributeType: aws.String("S"),
+			},
+		},
+		KeySchema: []*dynamodb.KeySchemaElement{
+			&dynamodb.KeySchemaElement{
+				AttributeName: aws.String("PostId"),
+				KeyType:       aws.String("HASH"),
+			},
+			&dynamodb.KeySchemaElement{
+				AttributeName: aws.String("CommentId"),
+				KeyType:       aws.String("SORT"),
+			},
+		},
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(1),
+			WriteCapacityUnits: aws.Int64(1),
+		},
+	})
+
 	for i := 1; i < 100; i++ {
 		err = doPost(Post{Title: fmt.Sprintf("this is a post %d", i), Body: fmt.Sprintf("this is a test post %d\n", i), Author: "r0ml", PostId: fmt.Sprintf("%d", i)})
+		for j := 1; j < 10; j++ {
+			err = doComment(Comment{Title: fmt.Sprintf("this is comment number %d on post %d", j, i), Body: fmt.Sprintf("this is the contents of the comment for post %d comment %d", i, j), Author: "r0ml", PostId: fmt.Sprintf("%d", i), CommentId: fmt.Sprintf("%d", j)})
+		}
 		fmt.Println("post", err)
 	}
 }

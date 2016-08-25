@@ -1,60 +1,14 @@
 
-import { Hljs, MarkdownIt } from './dependencies';
+
+import MarkdownIt from './markdown-it';
+import * as Hljs from './highlightjs';
 import { API_URL, App } from "./app";
-import { Component, fetch, StyleN, style } from "./utils";
+import { Component, fetch, StyleN, style, node } from "./utils";
+import { TimeAgo } from "./Posts";
+import * as Style from "./Styles";
 
-const hrStyles = new StyleN({
-  margin: '10px 0px'
-});
-
-const timeAgoStyles = new StyleN({
-  fontStyle: 'italic',
-  color: '#B1B1B1'
-});
-
-const clearStyles = new StyleN({
-  clear: 'both'
-});
-
-const gravatarStyles = new StyleN({
-  'height': '30px',
-  'display': 'inline-block'
-});
-
-const commentLiStyles = new StyleN({
-  border: '1px solid #E1E1E1',
-  padding: '10px',
-  marginLeft: '50px',
-  listStyle: 'none',
-});
-
-const commentBodyStyles = new StyleN({
-  margin: '0px'
-});
-
-const commentAuthorStyles = new StyleN({
-  fontStyle: 'italic',
-  float: 'right',
-  color: '#B1B1B1',
-});
-
-const deleteCommentStyles = new StyleN({
-  marginLeft: '10px',
-  float: 'right',
-  border: '0',
-  padding: '10px',
-  margin: '0',
-});
-
-const updateCommentStyles = new StyleN({
-  marginLeft: '10px',
-  float: 'right',
-  border: '0',
-  padding: '10px',
-  margin: '0',
-});
-
-const md = new MarkdownIt({
+const md = new MarkdownIt();
+md.options = {
   linkify: true,
   html: true,
   breaks: true,
@@ -72,82 +26,68 @@ const md = new MarkdownIt({
     }
     return `<pre><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`;
   },
-});
+};
 
-export class Comment extends Component {
+export class Comment {
+  public PostId: string;
+  public CommentId: string;
+  public Title: string;
+  public Body: string;
+  public Author: string;
+  public Gravatar: string;
+  public CreatedAt: string;
+}
+
+export class CommentItem extends Component {
   private editing: boolean;
-  private body: string;
-  protected postId: string;
-  protected jwt: string;
+  protected comment: Comment;
 
-  /*constructor(parent: HTMLElement) {
-    super();
-    this.editing = false;
-    this.body = '';
-  }*/
 
-  public onEditComment() {
-    const { comment } = this.props;
-    this.editing = true;
-    this.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
-  }
+  // this.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
 
-  public onUpdateComment(event) {
-    event.preventDefault();
-
-    const comment = {
-      id: this.props.comment.id,
-      body: this.body
-    };
-
-    this.props.onUpdateComment(comment);
-
-    this.editing = false;
-    this.props.comment.body = this.body.replace(/<br\s*[\/]?>/gi, "\n");
-  }
-
-  constructor() {
-    const { comment, isAuthor } = this.props;
-    comment.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
-
-    super(
-`      <li style=${commentLiStyles}>
-        <p style=${commentBodyStyles}>
-          {editing ? (
-            <Textarea class="u-full-width" value={body} onChange={event => {this.setState({body: event.target.value})}} />
-          ):<div dangerouslySetInnerHTML={{ __html: md.render(comment.body) }}></div>}
+  constructor(editing: boolean, comment: Comment) {
+    if (comment.Body === undefined) {
+      comment.Body = "";
+    }
+    // comment.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
+    let isAuthor = editing || (App.singleton.currentUser && comment.Author === App.singleton.currentUser.username);
+    super(node `
+      <li style=${Style.commentLiStyles}>
+        <p style=${Style.commentBodyStyles}>
+          ${editing ? `<textarea class="u-full-width" placeholder="new comment">${comment.Body}</textarea>` : `<div>${md.render(comment.Body)}</div>` }
         </p>
-        <hr style=${hrStyles}/>
-        <TimeAgo date={+comment.createdAt} style=${timeAgoStyles}/>
-        {isAuthor ? (
-          editing ? (
+        <hr style=${Style.hrStyles}/>
+        ${new TimeAgo(new Date(comment.CreatedAt) ) }
+        ${isAuthor ? (
+          editing ? `
             <div>
-              <button style=${deleteCommentStyles} onClick={() => {this.setState({editing: false, body: comment.body})}}>
+              <button style=${Style.deleteCommentStyles} name="deleteComment">
                 <i class="fa fa-times"></i>
               </button>
-              <button style=${updateCommentStyles} onClick={this.onUpdateComment.bind(this)}>
+              <button style=${Style.updateCommentStyles} name="updateCommment">
                 <i class="fa fa-check"></i>
               </button>
             </div>
-          ): (
+          `: `
             <div>
-              <button style=${deleteCommentStyles} type="submit" formaction="#/deleteComment">
+              <button style=${Style.deleteCommentStyles} type="submit" formaction="#/deleteComment">
                 <i class="fa fa-trash"></i>
               </button>
-              <button style=${updateCommentStyles} onClick={this.onEditComment.bind(this)}>
+              <button style=${Style.updateCommentStyles} name="updateComment">
                 <i class="fa fa-pencil-square-o"></i>
               </button>
             </div>
-          )
-        ) : null}
-              <span style=${commentAuthorStyles}>
-                <img style=${gravatarStyles}
-                     src={comment.author.gravatar}/>
-                ● {comment.author.username}
+          `
+        ) : undefined }
+              <span style=${Style.commentAuthorStyles}>
+                <img style=${Style.gravatarStyles}
+                     src=${comment.Gravatar}/>
+                ● ${comment.Author}
               </span>
-        <div style=${clearStyles}></div>
+        <div style=${Style.clearStyles}></div>
       </li>
  `   );
+    this.comment = comment;
   }
   public createComment() {
      fetch(API_URL+"addComment", this, function(x) { alert("comment created: "+x); });
@@ -156,7 +96,7 @@ export class Comment extends Component {
       fetch(API_URL+"updateComment", this, function(x) { alert("comment updated: "+x); });
   }
   public deleteComment() {
-      fetch(API_URL+"deleteComment", this.commentId, function(x) { alert("comment deleted: "+x); });
+      fetch(API_URL+"deleteComment", this.comment.CommentId, function(x) { alert("comment deleted: "+x); });
   }
 }
 
@@ -168,13 +108,35 @@ const noDataAvailableStyles = new StyleN({
 const commentUlStyles = new StyleN({marginBottom: '10px'});
 
 export class Comments extends Component {
-  public isCurrentUserAuthor(authorId) : boolean {
-    const { currentUser } = this.props;
-    return currentUser && authorId === currentUser.id
+  protected comments: [Comment];
+
+  constructor(postId: string) {
+    super(`<div></div>`);
+    this.getComments(postId);
   }
 
-  public render() : string {
-    const { comments, onUpdateComment, onDeleteComment } = this.props;
+  public getComments(postId: string) {
+    fetch( API_URL+ "comments", postId, (rs) => {
+      let a = JSON.parse(rs);
+      this.comments = a.Items;
+      this.showComments();
+    });
+  }
+
+  public showComments() {
+    const sortedComments = this.comments;
+    let pm = sortedComments.map(comment => new CommentItem(false, comment));
+    let gg = this.node;
+    if (sortedComments.length === 0) {
+      gg.innerHTML = `<div style=${Style.noDataAvailableStyles}>There are currently no comments available to display</div>`;
+    } else {
+      gg.innerHTML = `<ul style=${Style.ulStyles}></ul>`;
+      let gh = <HTMLElement>gg.firstElementChild;
+      pm.map(comment => { comment.appendTo(gh); });
+      console.log(gh);
+    }
+  }
+  /*
 
     const sortedComments = comments.length ? _.orderBy(comments, 'createdAt', ['desc']) : [];
 
@@ -204,6 +166,8 @@ export class Comments extends Component {
     `
   );
   }
+  */
+
 }
 
 const needToSignInStyles = new StyleN({
@@ -219,18 +183,6 @@ const headlineStyles = new StyleN({
 });
 
 export class CommentForm extends Component {
-
-  public onChangeBody(event) {
-    this.setState({body: event.target.value});
-  }
-
-  public onSubmit(event) {
-    event.preventDefault();
-
-    this.props.onSubmitForm(this.state);
-    this.setState({ body: '' });
-  }
-
   constructor(body: string) {
 
     const isLoggedIn = App.singleton.currentUser !== undefined;
@@ -244,10 +196,10 @@ export class CommentForm extends Component {
       return;
     }
 
-    super (`
+    super (node `
         <div>
             <form action="#/addComment">
-    <textarea style=${textareaStyles} placeholder="Body" class="u-full-width" onChange={this.onChangeBody.bind(this)} value={this.state.body}></textarea>
+    <textarea style=${textareaStyles} placeholder="Body" class="u-full-width" value=${body}></textarea>
     <input type="submit" class="button button-primary" value="Create comment" />
         </form>
         </div>
@@ -256,8 +208,8 @@ export class CommentForm extends Component {
 }
 
 // -============================================================================================================
-
-export class CommentNewContainer {
+/*
+export class CommentNewContainer extends Component {
   public handleCreateComment(comment) {
 
     const body = comment.body.replace(/(?:\r\n|\r|\n)/g, '<br />');
@@ -286,3 +238,4 @@ export class CommentNewContainer {
   `);
   }
 }
+*/

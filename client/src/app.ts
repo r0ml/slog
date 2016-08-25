@@ -1,4 +1,4 @@
-import {Component, StyleN, Route, style} from './utils';
+import {Component, StyleN, Route, style, node} from './utils';
 import {SignUp, SignIn, User} from './users';
 import {Posts} from './Posts';
 
@@ -24,6 +24,17 @@ export class App extends Component {
     new Footer().appendTo(this.node);
     App.initialIndex();
     Route.defineLink("/", App.initialIndex);
+
+    // deep linking -- routing the hash on arriving at a page as if clicked to there
+    let h = window.location.hash;
+    // if there is a hash, go there
+    if (h) {
+      // creating a link element so the custom event will not generate an error
+      let e = document.createElement("a");
+      document.body.appendChild(e);  // so the event will propagate up to the document
+      let t = new CustomEvent('click', { detail: h });
+      e.dispatchEvent(t);
+    }
   }
 
   public static initialIndex() {
@@ -95,7 +106,7 @@ export class Header extends Component {
   }
 
   constructor() {
-    super(`
+    super(node `
       <div style=${headerContainerStyles}>
         <div class="container" >
           <div class="row">
@@ -178,13 +189,13 @@ style(`
 
 export class Footer extends Component {
   constructor() {
-    super(`
+    super(node `
         <footer class="footerStyles">
         <div class="container">
           <div class="row">
             <div class="twelve columns">
               <div class="centerTextStyles">
-                Runs completely serverless
+                A react-less experiment
               </div>
             </div>
           </div>

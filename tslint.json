@@ -116,8 +116,8 @@
     ],
     "use-strict": [
       true,
-      "check-module",
-      "check-function"
+      "check-module"
+      // "check-function"
     ],
     "variable-name": [
       true,

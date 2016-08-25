@@ -30,7 +30,7 @@ export function fetch(u: string, p: any, cb: (res: string) => void) {
   //noinspection JSUnusedLocalSymbols
   xhr.onload = ( ev: Event ) => {
     if (xhr.status < 200 || xhr.status >= 300 ) {
-      alert("failed: " + xhr.responseBody + " " + xhr.status);
+      alert("failed: " + xhr.responseText + " " + xhr.status);
     } else {
       cb(xhr.responseText);
     }
@@ -67,10 +67,14 @@ export function style(s: string) {
 export class Component {
   public node: HTMLElement;
 
-  constructor(body: string) {
-    let nd = document.createElement('div');
-    nd.innerHTML = body;
-    this.node = <HTMLElement>nd.firstElementChild;
+  constructor(body: HTMLElement | string) {
+    if (typeof body === 'string') {
+      let n = document.createElement('div');
+      n.innerHTML = body;
+      this.node = <HTMLElement> n.firstElementChild;
+      } else {
+      this.node = body;
+    }
   }
   public appendTo(parent: HTMLElement) {
     parent.appendChild(this.node);
@@ -110,27 +114,38 @@ export class Route {
   public static link(ev:Event) {
     console.log("link");
     console.log(ev);
-
-    if ((<HTMLElement>ev.target).tagName === 'A') {
+    let h: string;
+    if (ev instanceof CustomEvent) {
+      h = ev.detail;
+    } else if ((<HTMLElement>ev.target).tagName === 'A') {
       ev.preventDefault();
-      let h = (<HTMLAnchorElement>ev.target).hash;
+      h = (<HTMLAnchorElement>ev.target).hash;
+    } else if (ev instanceof PopStateEvent && ev.eventPhase === 2) {
+      h = window.location.hash;
+      // there is no hash
+      if (!h) { return; }
+    } else {
+      // ignore this type of click
+      return;
+    }
       let f = Route.linkHandlers[h.substring(1)];
       if (f) {
         ev.preventDefault();
+        window.location.hash = h;
         f(ev);
       } else {
         for (const key in Route.linkHandlers) {
-          let k = h.substring(1).match("^"+key+"$");
+          let k = h.substring(1).match("^" + key + "$");
           if (k) {
             let value = Route.linkHandlers[key];
             ev.preventDefault();
+            window.location.hash = h;
             value.apply(undefined, k.slice(1));
             return;
           }
         }
         alert(h + " is not a link route");
       }
-    }
   }
 
   public static form(ev: Event ) {
@@ -162,7 +177,8 @@ export class Route {
         ev.preventDefault();
         f( (<HTMLInputElement>ev.target) );
       } else {
-        alert(h + " is not a change route");
+        // alert(h + " is not a change route");
+        console.log(h + " is not a change route");
       }
     }
   }
@@ -180,5 +196,46 @@ export class Route {
 }
 
 document.addEventListener("click", Route.link, true );
+window.addEventListener("popstate", Route.link, true);
 document.addEventListener("submit", Route.form, true);
 document.addEventListener("change", Route.change, true);
+
+// interpolates a template into a node
+export function node(literals, ...placeholders) {
+  // "use strict";
+  let result = "";
+  for (let i = 0; i<placeholders.length; i++) {
+    result += literals[i];
+    let p = placeholders[i];
+    if (p instanceof Component) {
+      result += '<div class="this-is-a-placeholder-'+i+'"></div>';
+    } else if (p instanceof StyleN) {
+      result += p.toString();
+    } else if (typeof p === "string") {
+      result += p;
+    } else if ( typeof p === "number") {
+      result += p.toString();
+    } else if ( p === undefined ) {
+      // ignore undefined
+      continue;
+    } else {
+      throw Error("interpolating neither a Component nor a string");
+    }
+  }
+  result += literals[literals.length-1];
+  let nd = document.createElement('div');
+  nd.innerHTML = result;
+  for (let i=0; i<placeholders.length; i++) {
+    if ( placeholders[i] instanceof Component ) {
+      placeholders[i].appendTo(nd.querySelector(".this-is-a-placeholder-"+i));
+    }
+  }
+  return <HTMLElement>nd.firstElementChild;
+}
+
+export function uuid(): string {
+ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+  return v.toString(16);
+});
+}
