@@ -1,21 +1,23 @@
 import {Component, StyleN, Route, style, node} from './utils';
 import {SignUp, SignIn, User} from './users';
 import {Posts} from './Posts';
+import {Md5} from './md5';
 
 // export const API_URL = 'https://55b85gckbc.execute-api.us-east-1.amazonaws.com/dev/';
 export const API_URL = 'http://localhost:9044/';
-
 
 export class App extends Component {
   public currentUser: User; // logged in user
   public static singleton: App;
 
   constructor(div:HTMLElement) {
-    if (App.singleton !== undefined) {
+    if (App.singleton) {
       throw Error("there is already an app on this page");
     }
     super('<div></div>');
     App.singleton = this;
+    let uu = localStorage.getItem("currentUser");
+    if (uu) this.currentUser = JSON.parse(uu);
     this.appendTo(div);
     new Header().appendTo(this.node);
     // new Component('<div class="container"><div class="error" style="margin-bottom: 100px;"></div>' +
@@ -30,17 +32,21 @@ export class App extends Component {
     // if there is a hash, go there
     if (h) {
       // creating a link element so the custom event will not generate an error
-      let e = document.createElement("a");
-      document.body.appendChild(e);  // so the event will propagate up to the document
-      let t = new CustomEvent('click', { detail: h });
-      e.dispatchEvent(t);
+      // let e = document.createElement("a");
+      // document.body.appendChild(e);  // so the event will propagate up to the document
+      let t = new CustomEvent('popstate', { detail: h });
+      // window.dispatchEvent(t);
+      let ck = document.dispatchEvent(t);
+      if (ck) {
+        alert("somebody called preventDefault() on this event");
+      }
     }
   }
 
   public static initialIndex() {
     let p = new Posts();
     p.replaceChild(<HTMLElement>document.querySelector('.main-content'));
-    p.getPosts();
+    p.getPosts(p.showPosts.bind(p));
   }
 }
 
@@ -49,7 +55,11 @@ const headerContainerStyles = new StyleN({
   marginBottom: '20px',
 });
 
-const brandStyles = `
+const newPostButtonStyles = new StyleN({
+  marginBottom: '0px'
+});
+
+style( `
 .brandStyles {
   font-size: 20px;
   font-weight: bold;
@@ -57,40 +67,69 @@ const brandStyles = `
   display: inline-block;
   margin-top: 10px;
 }
-`;
 
-
-const newPostButtonStyles = new StyleN({
-  marginBottom: '0px'
-});
-
-const ulStyles = `
 .ulStyles {
   list-style: none;
   padding: 0px;
   float: right;
   margin: 0px;
   margin-top: 10px;
-}`;
+}
 
-const liStyles = `
 .liStyles {
-  display: inline-block;
+  display: inline-block;.
   margin-left: 10px;
-}`;
+}
 
-const gravatarStyles = `
 .gravatarStyles {
   height: 36px;
   vertical-align: middle;
   display: inline-block;
-}`;
+}
 
+.centerTextStyles { text-align: center; }
 
-let st = document.createElement('style');
-st.type = 'text/css';
-document.head.appendChild(st);
-st.innerHTML = brandStyles + ulStyles + liStyles + gravatarStyles;
+.footerStyles {
+  border-top: 1px solid #E1E1E1;
+  padding: 10px;
+  margin-top: 20px;
+  position: fixed;
+  bottom: 0px;
+  width: 100%;
+  background-color: white;
+}
+` );
+
+export class Gravatar extends Component {
+  /*
+  static x = document.addEventListener("login", (x: CustomEvent) => {
+    console.log("loggedIn: "+x);
+    let gn = document.querySelectorAll("[data-gravatar]");
+    let u = x.detail;
+    let e = Gravatar.link( u ? u['email'] : null) ;
+    for(var i = 0;i<gn.length;i++) {
+      gn.item(i).setAttribute('src', e);
+    }
+  } );
+  */
+  public static link(email:string) : string {
+    let grava = "unknown";
+    if ( ! (email == null)) {
+      let xx = Md5.hashStr(email, false);
+      grava = `https://s.gravatar.com/avatar/${xx}?s=100&r=x&d=retro`;
+    }
+    return grava;
+  }
+  constructor(email: string) {
+    let grava=Gravatar.link(email);
+    super(node `<img class="gravatarStyles" data-gravatar src="${grava}" />`);
+    // this.node.classList.add("gravatar");
+  }
+  /*
+   let z = <HTMLElement>document.querySelector(".gravatar");
+   let k = z.dataset['gravatar'];
+   */
+}
 
 export class Header extends Component {
 
@@ -102,7 +141,7 @@ export class Header extends Component {
   public static singleton: Header;
 
   public static handleSignOutClick(event:MouseEvent) {
-    Header.singleton.setCurrentUser(undefined);
+    Header.singleton.setCurrentUser(null);
   }
 
   constructor() {
@@ -132,12 +171,16 @@ export class Header extends Component {
 
   public setCurrentUser(u: User) {
     App.singleton.currentUser = u;
-    this.node.dispatchEvent(new Event('login'));
+    localStorage.setItem("currentUser", JSON.stringify(u));
+    let ck = document.dispatchEvent(new CustomEvent('login', {detail: u}));
+    if (!ck) {
+      alert("somebody called preventDefault() on this event");
+    }
     let ul = <HTMLElement>this.node.querySelector('ul');
-    if (u !== undefined) {
+    if (u) {
       Route.defineLink("/sign-out", Header.handleSignOutClick);
       ul.innerHTML=`<li class=liStyles><a href="#/posts/new" class="button button-primary" style=${newPostButtonStyles}>New post</a></li>
-                    <li class=liStyles>${u.email} ● <img class="gravatarStyles" src="${u.gravatar}" /> ● <a href='#/sign-out' >Sign out</a></li>
+                    <li class=liStyles>${u.email} ● ${new Gravatar(u.email)} ● <a href='#/sign-out' >Sign out</a></li>
  `;
       Route.go("#/");
       // Posts.new(undefined);
@@ -163,44 +206,16 @@ export class Header extends Component {
   }
 }
 
-const footerStyles = {
-  borderTop: '1px solid #E1E1E1',
-  padding: '10px',
-  marginTop: '20px',
-  position: 'fixed',
-  bottom: '0px',
-  width: '100%',
-  backgroundColor: 'white'
-};
-
-style(`
-.centerTextStyles { text-align: center; }
-
-.footerStyles {
-  border-top: 1px solid #E1E1E1;
-  padding: 10px;
-  margin-top: 20px;
-  position: fixed;
-  bottom: 0px;
-  width: 100%;
-  background-color: white;
-}
-`);
-
 export class Footer extends Component {
   constructor() {
     super(node `
-        <footer class="footerStyles">
-        <div class="container">
-          <div class="row">
-            <div class="twelve columns">
-              <div class="centerTextStyles">
-                A react-less experiment
-              </div>
-            </div>
+      <footer class="footerStyles">
+        <div class="container row">
+          <div class="twelve columns centerTextStyles">
+              A react-less experiment
           </div>
         </div>
-        </footer>
+      </footer>
     `);
   }
 }

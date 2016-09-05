@@ -20,6 +20,8 @@ export class PostForm extends Component {
 
     Route.defineForm("/create", Posts.createPost);
 
+    if (!bod) bod = "";
+    if (!titl) titl = "";
     let body = bod.replace(/(?:\r\n|\r|\n)/g, '<br />');
 
     let ih = isLoggedIn ? node `
@@ -27,7 +29,7 @@ export class PostForm extends Component {
         <div class="eight columns offset-by-two">
           <form method="post" action="#/create">
             <h1>New post</h1>
-            <input name=title type="text" placeholder="Title" class="u-full-width"  value=${titl} />
+            <input name=title type="text" placeholder="Title" class="u-full-width"  value="${titl}" />
             <textarea name=body style=${Style.textareaStyles} placeholder="Body" class="u-full-width">${body}</textarea>
             <input type="submit" class="button button-primary" value="Create post" />
             <a href="#/" class="u-pull-right button">Cancel</a>
@@ -84,7 +86,7 @@ export class Posts extends Component {
   }
 
   public static newPost(ev: Event) {
-    let a = new PostForm('Title', 'Body');
+    let a = new PostForm(null, null);
     a.replaceChild( (<HTMLElement>document.querySelector('.main-content')));
   }
 
@@ -94,9 +96,13 @@ export class Posts extends Component {
          return x;
       }
     }
-    return undefined;
+    return null;
   }
   public pickPost(n: string) {
+    if (this.posts == null) {
+      this.getPosts(this.pickPost.bind(this, n));
+      return;
+    }
     let a = new PostDetail(false, this.find(n) );
     a.replaceChild( (<HTMLElement>document.querySelector('.main-content')));
   }
@@ -120,20 +126,19 @@ export class Posts extends Component {
   public static createPost(fm: HTMLCollection) {
     let p = new Post();
     p.Title = (<HTMLInputElement>(fm.namedItem('title'))).value;
-    p.Body = (<HTMLTextAreaElement>(fm.namedItem('body'))).textContent;
-    p.Author = App.singleton.currentUser.username;
-    p.Gravatar = App.singleton.currentUser.gravatar;
+    p.Body = (<HTMLTextAreaElement>(fm.namedItem('body'))).value;
+    p.Author = App.singleton.currentUser.email;
 
     fetch( API_URL + "post", p, (rs) => {
         alert("post created: "+rs);
     });
   };
 
-  public getPosts() {
-    fetch( API_URL+ "posts", undefined, (rs) => {
+  public getPosts(f: () => void) {
+    fetch( API_URL+ "posts", null, (rs) => {
       let a = JSON.parse(rs);
       this.posts = a.Items;
-      this.showPosts();
+      f();
     });
 
   }

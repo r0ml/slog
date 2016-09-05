@@ -27,23 +27,8 @@ export class User {
       this.gravatar = b.gravatar;
       Header.singleton.setCurrentUser(this);
     } );
-
-    /*
-        id
-        username
-        email
-        jwt
-        gravatar
-     */
   }
 }
-
-// ================================================================
-
-// import React, { Component } from 'react';
-// import { connect } from 'react-redux';
-// import { signUp } from '../../actions/users';
-// import { Link } from 'react-router';
 
 export class SignUp extends Component {
   public static handleSignUp(event: HTMLCollection ) {

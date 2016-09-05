@@ -2,7 +2,7 @@
 
 import MarkdownIt from './markdown-it';
 import * as Hljs from './highlightjs';
-import { API_URL, App } from "./app";
+import { API_URL, App, Gravatar } from "./app";
 import { Component, fetch, StyleN, style, node } from "./utils";
 import { TimeAgo } from "./Posts";
 import * as Style from "./Styles";
@@ -34,7 +34,6 @@ export class Comment {
   public Title: string;
   public Body: string;
   public Author: string;
-  public Gravatar: string;
   public CreatedAt: string;
 }
 
@@ -46,7 +45,7 @@ export class CommentItem extends Component {
   // this.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
 
   constructor(editing: boolean, comment: Comment) {
-    if (comment.Body === undefined) {
+    if (!comment.Body) {
       comment.Body = "";
     }
     // comment.body = comment.body.replace(/<br\s*[\/]?>/gi, "\n");
@@ -78,10 +77,9 @@ export class CommentItem extends Component {
               </button>
             </div>
           `
-        ) : undefined }
+        ) : null }
               <span style=${Style.commentAuthorStyles}>
-                <img style=${Style.gravatarStyles}
-                     src=${comment.Gravatar}/>
+                ${new Gravatar(comment.Author)}
                 ● ${comment.Author}
               </span>
         <div style=${Style.clearStyles}></div>
@@ -124,6 +122,7 @@ export class Comments extends Component {
   }
 
   public showComments() {
+    if (!this.comments) { this.comments=<[Comment]>[]; }
     const sortedComments = this.comments;
     let pm = sortedComments.map(comment => new CommentItem(false, comment));
     let gg = this.node;
@@ -184,8 +183,9 @@ const headlineStyles = new StyleN({
 
 export class CommentForm extends Component {
   constructor(body: string) {
+    if (!body) body="";
 
-    const isLoggedIn = App.singleton.currentUser !== undefined;
+    const isLoggedIn = !!App.singleton.currentUser;
 
     if (!isLoggedIn) {
       super(
@@ -193,10 +193,9 @@ export class CommentForm extends Component {
             <span>You need to </span><Link to="/sign-in">sign in</Link> <span>to create a new comment</span>
     </div>`
       );
-      return;
-    }
+    } else {
 
-    super (node `
+      super(node `
         <div>
             <form action="#/addComment">
     <textarea style=${textareaStyles} placeholder="Body" class="u-full-width" value=${body}></textarea>
@@ -204,6 +203,7 @@ export class CommentForm extends Component {
         </form>
         </div>
   `);
+    }
   }
 }
 

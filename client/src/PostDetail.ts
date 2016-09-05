@@ -1,11 +1,11 @@
 
 import MarkdownIt from './markdown-it';
 import * as Hljs from './highlightjs';
-import { Component, StyleN, node } from './utils';
+import { Component, StyleN, node, Route, fetch } from './utils';
 import { Post, TimeAgo } from './Posts';
-import { App } from './app';
+import { App, Gravatar, API_URL } from './app';
 import * as Style from './Styles';
-import {CommentItem, Comment, Comments} from './Comment';
+import {CommentItem, Comment, CommentForm, Comments} from './Comment';
 
 const md = new MarkdownIt();
 md.options = {
@@ -27,7 +27,6 @@ md.options = {
     return `<pre><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`;
   },
 };
-
 
 export class PostDetail extends Component {
   public state : Post;
@@ -58,13 +57,19 @@ export class PostDetail extends Component {
     */
     alert("Update post");
   }
+  /*
+  public onDeletePost(event) {
+    alert("Delete post");
+  }
+  */
 
   constructor(editing: boolean, post: Post) {
     // const { post, isAuthor } = this.props;
     // const { editing, title, body } = this.state;
     post.Body = post.Body.replace(/<br\s*[\/]?>/gi, "\n");
-    let isAuthor = App.singleton.currentUser && post.Author === App.singleton.currentUser.username;
+    let isAuthor = App.singleton.currentUser && post.Author === App.singleton.currentUser.email;
     let z = super( post ? node `
+     <div>
       <div class="row">
         <div class="twelve columns">
             <div>
@@ -100,21 +105,29 @@ export class PostDetail extends Component {
                       </div>
                     `
                   ) : ""}
-                  <span style=${Style.postAuthorStyles}><img style=${Style.gravatarStyles}
-                                                      src=${post.Gravatar}/> ● ${post.Author}</span>
+                  <span style=${Style.postAuthorStyles}>${new Gravatar(post.Author)} ● ${post.Author}</span>
                   <div style=${Style.clearStyles}></div>
                 </li>
               </ul>
-              ${new CommentItem(true, new Comment)}
-              ${new Comments(post.PostId)}
-              <div class="placeholder-for-comment-list"></div>
-              
             </div>
           </div>
+        
+        <ul>
+          ${new CommentForm(null)}
+          ${new Comments(post.PostId)}
+        </ul>
         </div>
-      </div>
+               </div>
+        </div>
+
     ` : node `<div style=${Style.noDataAvailableStyles}>Seems like this post is not available <br /><a href="#/">Go back</a> `
     );
+
+    Route.defineButton( "deletePost", (x) => {
+      fetch(API_URL+"deletePost", post, (y) => {
+        window.location.hash="/";
+      });
+    } );
 
     // The reason this cannot be interpolated is that interpolation converts the node to outerhtml,
     // and loses its identity, so it can no longer be modified.

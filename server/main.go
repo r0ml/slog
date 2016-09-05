@@ -96,8 +96,11 @@ func itemFromStruct(value interface{}) map[string]*dynamodb.AttributeValue {
 			}
 		case reflect.TypeOf(mt):
 			ft := f.Interface().(time.Time)
-			fts := fmt.Sprint(-ft.UnixNano())
-			result[nn] = &dynamodb.AttributeValue{N: &fts}
+			ftx := -ft.UnixNano()
+			if ftx != 6795364578871345152 {
+				fts := fmt.Sprint(ftx)
+				result[nn] = &dynamodb.AttributeValue{N: &fts}
+			}
 
 		default:
 			log.Fatal("itemFromStruct cannot handle type", t)
@@ -232,10 +235,43 @@ func post(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		panic("This is not valid JSON")
 	}
+	t.PostId = t.Title
+
 	log.Printf("doPost: %#v\n", t)
 	err = doPost(t)
 
 	log.Println("do post ", err)
+	encoder := json.NewEncoder(w)
+
+	setCORS(w, req)
+	if err != nil {
+		// w.Header().Set("header_name", "header_value")
+		w.WriteHeader(409)
+		encoder.Encode(err)
+	} else {
+		encoder.Encode("OK")
+	}
+
+}
+
+func deletePost(w http.ResponseWriter, req *http.Request) {
+	decoder := json.NewDecoder(req.Body)
+	var t Post
+	err := decoder.Decode(&t)
+	if err != nil {
+		panic("This is not valid JSON")
+	}
+	t.PostId = t.Title
+
+	log.Printf("deletePost: %#v\n", t)
+	// this must also delete the associated comments
+	// this is best done by either
+	// . a) also deleting the associated comments or
+	// . b) changing the database so that the comments
+	//      are part of the post
+	err = doDeletePost(t)
+
+	log.Println("delete post ", err)
 	encoder := json.NewEncoder(w)
 
 	setCORS(w, req)
@@ -366,6 +402,19 @@ func doComment(t Comment) error {
 	return err
 }
 
+func doDeletePost(t Post) error {
+	t = Post{PostId: t.PostId}
+	log.Println("doDeletePost: => ", t)
+	values := itemFromStruct(t)
+	log.Println("doDeletePost: ", values)
+	dsvc := dynamodb.New(Session)
+	_, err := dsvc.DeleteItem(&dynamodb.DeleteItemInput{
+		TableName: aws.String("posts"),
+		Key:       values,
+	})
+	return err
+}
+
 func doPost(t Post) error {
 	dsvc := dynamodb.New(Session)
 	t.CreatedAt = time.Now()
@@ -405,6 +454,7 @@ func main() {
 	http.HandleFunc("/comment", comment)
 	http.HandleFunc("/posts", posts)
 	http.HandleFunc("/post", post)
+	http.HandleFunc("/deletePost", deletePost)
 	http.HandleFunc("/hello", hello)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/register", register)

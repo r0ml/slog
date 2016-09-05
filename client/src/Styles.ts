@@ -1,6 +1,4 @@
-/**
- * Created by r0ml on 8/17/16.
- */
+
 import {StyleN} from "./utils";
 
 // declare namespace Styles {
