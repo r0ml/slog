@@ -1,13 +1,13 @@
-import {Component, StyleN, Route, style, node} from './utils';
-import {SignUp, SignIn, User} from './users';
-import {Posts} from './Posts';
-import {Md5} from './md5';
+import {Component, StyleN, Route, style, node} from "./utils";
+import {SignUp, SignIn, User} from "./users";
+import {Posts} from "./Posts";
+import {Md5} from "./md5";
 
 // export const API_URL = 'https://55b85gckbc.execute-api.us-east-1.amazonaws.com/dev/';
 export const API_URL = 'http://localhost:9044/';
 
 export class App extends Component {
-  public currentUser: User; // logged in user
+  public currentUser: User | null; // logged in user
   public static singleton: App;
 
   constructor(div:HTMLElement) {
@@ -16,16 +16,27 @@ export class App extends Component {
     }
     super('<div></div>');
     App.singleton = this;
-    let uu = localStorage.getItem("currentUser");
-    if (uu) this.currentUser = JSON.parse(uu);
+    let uu : string | null = null;
+      uu = localStorage.getItem("currentUser");
+    try {
+      if (uu) {
+        this.currentUser = JSON.parse(uu);
+      }
+    } catch(x) {
+      console.log(x);
+    }
+
     this.appendTo(div);
+
     new Header().appendTo(this.node);
+
     // new Component('<div class="container"><div class="error" style="margin-bottom: 100px;"></div>' +
     new Component('<div class="container"><div class="main-content"></div></div>').appendTo(this.node);
 
     new Footer().appendTo(this.node);
     App.initialIndex();
     Route.defineLink("/", App.initialIndex);
+
 
     // deep linking -- routing the hash on arriving at a page as if clicked to there
     let h = window.location.hash;
@@ -169,9 +180,9 @@ export class Header extends Component {
     this.setCurrentUser(App.singleton.currentUser);
   }
 
-  public setCurrentUser(u: User) {
+  public setCurrentUser(u: (User | null) ) {
     App.singleton.currentUser = u;
-    localStorage.setItem("currentUser", JSON.stringify(u));
+    if (u) localStorage.setItem("currentUser", JSON.stringify(u));
     let ck = document.dispatchEvent(new CustomEvent('login', {detail: u}));
     if (!ck) {
       alert("somebody called preventDefault() on this event");
@@ -220,4 +231,4 @@ export class Footer extends Component {
   }
 }
 
-new App(document.body);
+// new App(document.body);

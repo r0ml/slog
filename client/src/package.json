@@ -1,8 +1,8 @@
 {
   "dependencies": {
-    "aws-sdk": "^2.5.2",
     "highlightjs": "^8.7.0",
     "markdown-it": "^7.0.0",
-    "systemjs": "^0.19.36"
+    "systemjs": "^0.19.36",
+    "medium-editor": "^5.21.1"
   }
 }

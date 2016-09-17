@@ -222,12 +222,14 @@ export class Route {
     if ((<HTMLElement>ev.target).tagName === 'FORM') {
       ev.preventDefault();
       let h = (<HTMLFormElement>ev.target).getAttribute("action");
-      let f = Route.formHandlers[h.substring(1)];
-      if (f) {
-        ev.preventDefault();
-        f((<HTMLFormElement>ev.target).elements);
-      } else {
-        alert(h + " is not a form route");
+      if (h) {
+        let f = Route.formHandlers[h.substring(1)];
+        if (f) {
+          ev.preventDefault();
+          f((<HTMLFormElement>ev.target).elements);
+        } else {
+          alert(h + " is not a form route");
+        }
       }
     }
   }
@@ -239,13 +241,15 @@ export class Route {
     if ((<HTMLElement>ev.target).tagName === 'INPUT') {
       ev.preventDefault();
       let h = (<HTMLFormElement>ev.target).getAttribute("name");
-      let f = Route.changeHandlers[h.substring(1)];
-      if (f) {
-        ev.preventDefault();
-        f((<HTMLInputElement>ev.target));
-      } else {
-        // alert(h + " is not a change route");
-        console.log(h + " is not a change route");
+      if (h) {
+        let f = Route.changeHandlers[h.substring(1)];
+        if (f) {
+          ev.preventDefault();
+          f((<HTMLInputElement>ev.target));
+        } else {
+          // alert(h + " is not a change route");
+          console.log(h + " is not a change route");
+        }
       }
     }
   }

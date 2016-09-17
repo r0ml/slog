@@ -2,7 +2,7 @@
 <html lang="en-US">
   <head>
     <meta charset="UTF-8">
-    <script src="node_modules/systemjs/dist/system.js"></script>
+    <script src="./node_modules/systemjs/dist/system.js"></script>
     <script>
       System.config({
         // transpiler: 'typescript',
@@ -17,8 +17,7 @@
           }
         }
       });
-      System.import('app');
-      // System.import('app').then(function(x) { new x.App(document.body); }, console.error.bind(console));
+      System.import('app').then(function(x) { new x.App(document.body); }, console.error.bind(console));
     </script>
     <!-- <script src="bundle.js"></script> -->
 
